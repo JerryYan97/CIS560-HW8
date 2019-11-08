@@ -1,2 +1,1 @@
-Extra credit:
-ray casting: vertices and faces.
+Extra credit:Unfinished functions for heat defusion skinning.
