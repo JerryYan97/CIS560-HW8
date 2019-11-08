@@ -1,0 +1,155 @@
+
+// Set sym pointers for two rings of half-edges
+
+void SetSymPointers(HalfEdge* edgeRing1, HalfEdge* edgeRing2)
+{
+    // get two vectors storing pairs; pair<halfedge, backvertex>
+    std::vector<std::pair<HalfEdge*, Vertex*>> ring1PairVec;
+    std::vector<std::pair<HalfEdge*, Vertex*>> ring2PairVec;
+    // disassemble each ring and assemble them into the pair vectors
+    // ring1
+    HalfEdge* r1Ptr = edgeRing1;
+    do{
+        std::pair<HalfEdge*, Vertex*> p1 = std::pair<HalfEdge*, Vertex*>(r1Ptr->mNextEdge_Ptr, r1Ptr->mVertex_Ptr);
+        ring1PairVec.push_back(p1);
+        r1Ptr = r1Ptr->mNextEdge_Ptr;
+    }while(r1Ptr != edgeRing1);
+    // ring2
+    HalfEdge* r2Ptr = edgeRing2;
+    do{
+        std::pair<HalfEdge*, Vertex*> p2 = std::pair<HalfEdge*, Vertex*>(r2Ptr->mNextEdge_Ptr, r2Ptr->mVertex_Ptr);
+        ring2PairVec.push_back(p2);
+        r1Ptr = r1Ptr->mNextEdge_Ptr;
+    }while(r2Ptr != edgeRing2);
+    // find the matched pairs and give them the symmetrical relationship
+    for(std::vector<std::pair<HalfEdge*, Vertex*>>::iterator r1VecPtr = ring1PairVec.begin(); r1VecPtr != ring1PairVec.end(); r1VecPtr++)
+    {
+        for(std::vector<std::pair<HalfEdge*, Vertex*>>::iterator r2VecPtr = ring2PairVec.begin();
+            r2VecPtr != ring2PairVec.end(); r2VecPtr++)
+        {
+            if(PairMatch(*r1VecPtr, *r2VecPtr))
+            {
+                *r1VecPtr->first->mSymEdge_Ptr = *r2VecPtr->first;
+                *r2VecPtr->first->mSymEdge_Ptr = *r1VecPtr->first;
+            }
+        }
+    }
+}
+
+// Init standard Square data
+// Convert Square data to half-edge data
+// Create Info of Position, Connectivity and Adjacency
+void Mesh::ConstructStandardCube()
+{
+    // Init 6 Square
+    // Init 8 pos, 24 indices
+    std::array<glm::vec4, 8> pos = {
+        glm::vec4( 0.5,  0.5,  0.5, 1.0),
+        glm::vec4(-0.5,  0.5,  0.5, 1.0),
+        glm::vec4(-0.5, -0.5,  0.5, 1.0),
+        glm::vec4( 0.5, -0.5,  0.5, 1.0),
+        glm::vec4( 0.5,  0.5, -0.5, 1.0),
+        glm::vec4(-0.5,  0.5, -0.5, 1.0),
+        glm::vec4(-0.5, -0.5, -0.5, 1.0),
+        glm::vec4( 0.5, -0.5, -0.5, 1.0)
+    };
+
+    std::array<int, 24> indices = {
+        0, 1, 2, 3, // Front
+        0, 4, 5, 1, // Top
+        4, 7, 6, 5, // Back
+        7, 3, 2, 6, // Bottom
+        4, 0, 3, 7, // Right
+        6, 2, 1, 5  // Left
+    };
+    // Convert Square data to half-edge data
+    // Create and Init 8 vertex unique pointers -- mPos
+    std::array<std::unique_ptr<Vertex>, 8> vArray;
+    for(int i = 0; i < 8; i++)
+    {
+        std::unique_ptr<Vertex> v = std::make_unique<Vertex>(Vertex());
+        v->mPos = pos.at(i);
+        vArray.at(i) = std::move(v);
+    }
+
+    // Create and Init 24 half-edge -- next, sym, vertex
+    std::array<std::unique_ptr<HalfEdge>, 24> hArray;
+    std::array<HalfEdge*, 6> ringHalfEdgeArray;
+    // construct 6 rings -- set next pointers for 24 half-edge
+    // save a half-edge for each ring
+    for(int i = 0; i < 6; i++)
+    {
+        // Create half-edges for a ring
+        std::unique_ptr<HalfEdge> h1 = std::make_unique<HalfEdge>(HalfEdge());
+        std::unique_ptr<HalfEdge> h2 = std::make_unique<HalfEdge>(HalfEdge());
+        std::unique_ptr<HalfEdge> h3 = std::make_unique<HalfEdge>(HalfEdge());
+        std::unique_ptr<HalfEdge> h4 = std::make_unique<HalfEdge>(HalfEdge());
+        // Link half-edges: h1 -> h2, h2 -> h3, h3 -> h4, h4 -> h1 for a ring
+        h1->mNextEdge_Ptr = h2.get();
+        h2->mNextEdge_Ptr = h3.get();
+        h3->mNextEdge_Ptr = h4.get();
+        h4->mNextEdge_Ptr = h1.get();
+        // record a half-edge to represent a ring
+        ringHalfEdgeArray.at(i) = h1.get();
+    }
+    // assign 6 rings to 6 spatical positions -- set vertex pointers from indices for all half-edges
+    // also assign vertices' edge pointers
+    for(int i = 0; i < 6; i++)
+    {
+        // for each ring
+        HalfEdge* headHalfEdge = ringHalfEdgeArray.at(i);
+        HalfEdge* ePtr = headHalfEdge;
+        for(int j = 0; j < 4; j++, ePtr = ePtr->mNextEdge_Ptr)
+        {
+            // for each half-edge
+            // get the target vertex index
+            int vIndex = indices.at(i * 4 + j);
+            // get the target vertex pointer from vArray according to that vertex index
+            Vertex* vPtr = vArray.at(vIndex).get();
+            // assgin that vertex pointer to this half-edge
+            ePtr->mVertex_Ptr = vPtr;
+            // assgin this half-edge's pointer to this vertex
+            vPtr->mEdge_Ptr = ePtr;
+        }
+    }
+    // set sym for each half-edge -- set adjacency for 6 rings
+    // exe SetSymPointers between every rings
+    for(int i = 0; i < 5; i++)
+    {
+        HalfEdge* TarRing = ringHalfEdgeArray.at(i);
+        for(int j = i + 1; j < 6; j++)
+        {
+            HalfEdge* CheckRing = ringHalfEdgeArray.at(j);
+            SetSymPointers(CheckRing, TarRing);
+        }
+    }
+    // Create and Init 6 faces -- edge, color
+    std::array<std::unique_ptr<Face>, 6> fArray;
+    for(int i = 0; i < 6; i++)
+    {
+        std::unique_ptr<Face> currFace = std::make_unique<Face>(Face());
+        currFace->mEdge_Ptr = ringHalfEdgeArray.at(i);
+        currFace->mColor = glm::vec4(1, 0, 0, 1);
+    }
+
+    // Add connection between components
+    // half-edge -- face
+    for(int i = 0; i < 6; i++)
+    {
+        fArray.at(i)->mEdge_Ptr = ringHalfEdgeArray.at(i);
+    }
+
+    // Push vertices, half-edges and faces unique pointers to their own vectors
+    for(int i = 0; i < 8; i++)
+    {
+        mVertexList.push_back(std::move(vArray.at(i)));
+    }
+    for(int i = 0; i < 24; i++)
+    {
+        mHalfEdgeList.push_back(std::move(hArray.at(i)));
+    }
+    for(int i = 0; i < 6; i++)
+    {
+        mFaceList.push_back(std::move(fArray.at(i)));
+    }
+}
