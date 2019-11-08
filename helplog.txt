@@ -1,1 +1,1 @@
-2019-10-20 -- Learning concepts about Planar Graphs.  https://www.youtube.com/watch?v=wnYtITkWAYA
+2019-11-7 Discuss how to use the "in" array variable in the vertex shader with Xuecheng Sun.
