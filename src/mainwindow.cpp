@@ -452,7 +452,7 @@ void MainWindow::slot_addSkeletonToListWidget(Skeleton &i)
 
 void MainWindow::slot_onSkinningButtonClicked(bool i)
 {
-    ui->mygl->Skinning(ui->mygl->m_Cube, ui->mygl->m_skeleton);
+    ui->mygl->HeatDiffusionSkinning(ui->mygl->m_Cube, ui->mygl->m_skeleton);
     ui->mygl->setFocus();
     ui->mygl->m_Cube.destroy();
     ui->mygl->m_Cube.create();

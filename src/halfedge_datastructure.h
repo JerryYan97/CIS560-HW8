@@ -131,7 +131,7 @@ protected:
     void ConstructAFrameWireSphere(glm::mat4 transformMat, FrameWireSphere& iSphere, bool selected);
     void ConstructSphereConnection(Joint* parent);
 };
-
+HalfEdge* FindHEinFacePointsToVert(const Vertex* tarVert, const Face* f);
 glm::vec3 CalculateVertexNorm(HalfEdge* hePtr);
-
+void FindAdjFaces(const Vertex* tarVet, std::vector<Face*>& adjFacesVec);
 #endif // HALFEDGE_DATASTRUCTURE_H

@@ -4,8 +4,48 @@
 #include <iostream>
 #include <QApplication>
 #include <QKeyEvent>
+#include <halfedge_datastructure.h>
+
+/// General Support ///
+
+int FaceEdgeNum(Face* f)
+{
+    int counter = 0;
+    HalfEdge* hePtr = f->mEdge_Ptr;
+    do{
+        counter++;
+        hePtr = hePtr->mNextEdge_Ptr;
+    }while(hePtr != f->mEdge_Ptr);
+    return counter;
+}
 
 
+double CalDistance(glm::vec4 v1, glm::vec4 v2)
+{
+    glm::vec4 lenVec = v1 - v2;
+    lenVec.w = 0;
+    return glm::length(lenVec);
+}
+
+int FindFarestVert(const std::vector<Vertex*>& vertVec, glm::vec4 tarPos)
+{
+    Vertex* farestVert = vertVec.at(0);
+    double farestDis = CalDistance(farestVert->mPos, tarPos);
+    int farestPos = 0;
+    for(unsigned int i = 1; i < vertVec.size(); i++)
+    {
+        Vertex* currVert = vertVec.at(i);
+        double currDis = CalDistance(currVert->mPos, tarPos);
+        if(currDis > farestDis)
+        {
+            farestDis = currDis;
+            farestVert = currVert;
+            farestPos = i;
+        }
+    }
+    return farestPos;
+}
+/// *************** ///
 MyGL::MyGL(QWidget *parent)
     : OpenGLContext(parent),
       m_geomSquare(this),
@@ -109,6 +149,7 @@ void MyGL::paintGL()
     std::vector<glm::mat4> jointToWorldMatVec = m_skeleton.getJointToWorldMatVec();
     m_progSKeleton.setBindMatArray(bindMatVec);
     m_progSKeleton.setJointToWorldMatArray(jointToWorldMatVec);
+    m_progSKeleton.setJointNum(7);
 
 //#define NOPE
 #ifndef NOPE
@@ -122,11 +163,8 @@ void MyGL::paintGL()
     glm::mat4 model = glm::mat4(1.f);
     m_Cube.model = model;
     //Send the geometry's transformation matrix to the shader
-    //m_progLambert.setModelMatrix(model);
     //Draw the example sphere using our lambert shader
-    //m_progLambert.draw(m_Cube);
     m_progSKeleton.setModelMatrix(model);
-    m_progSKeleton.jointNum = m_skeleton.mJointsList.size();
     m_progSKeleton.draw(m_Cube);
 
     glDisable(GL_DEPTH_TEST);
@@ -338,16 +376,6 @@ Face* MyGL::AddATriangle(Face *f, Mesh &iMesh)
     return face1;
 }
 
-int FaceEdgeNum(Face* f)
-{
-    int counter = 0;
-    HalfEdge* hePtr = f->mEdge_Ptr;
-    do{
-        counter++;
-        hePtr = hePtr->mNextEdge_Ptr;
-    }while(hePtr != f->mEdge_Ptr);
-    return counter;
-}
 
 void MyGL::TriangulateFace(Face *f, Mesh &iMesh)
 {
@@ -487,31 +515,6 @@ void MyGL::IntersectionTest(glm::vec4 modelSpaceRay)
 
 }
 
-double CalDistance(glm::vec4 v1, glm::vec4 v2)
-{
-    glm::vec4 lenVec = v1 - v2;
-    lenVec.w = 0;
-    return glm::length(lenVec);
-}
-
-int FindFarestVert(const std::vector<Vertex*>& vertVec, glm::vec4 tarPos)
-{
-    Vertex* farestVert = vertVec.at(0);
-    double farestDis = CalDistance(farestVert->mPos, tarPos);
-    int farestPos = 0;
-    for(unsigned int i = 1; i < vertVec.size(); i++)
-    {
-        Vertex* currVert = vertVec.at(i);
-        double currDis = CalDistance(currVert->mPos, tarPos);
-        if(currDis > farestDis)
-        {
-            farestDis = currDis;
-            farestVert = currVert;
-            farestPos = i;
-        }
-    }
-    return farestPos;
-}
 
 // When you need to implement the heat diffusion algorthim
 // you can just make the vertNum become 1.
@@ -547,7 +550,7 @@ void FindNearestVertices(unsigned int vertNum, Mesh &iMesh, Joint* tarJoint, std
 void SetInfluenceForThisSkeletonBrunch(Mesh &iMesh, Joint *mJoint)
 {
     std::vector<Vertex*> nearestVertVec;
-    unsigned int nearestVetNum = 2;
+    unsigned int nearestVetNum = 1;
     unsigned int influPerVertNum = 2;
     glm::vec4 jointPos = mJoint->getOverallTransformation() * glm::vec4(0, 0, 0, 1);
     double sumDis = 0;
@@ -603,6 +606,78 @@ int FindFarestJoint(std::vector<Joint*>& nearestJointVec, glm::vec4 tarVertPos)
     }
 
     return farestPos;
+}
+
+void FindAdjVec(Vertex* tarVert, std::vector<Vertex*>& adjVertVec)
+{
+    std::vector<Face*> adjFaceVec;
+    FindAdjFaces(tarVert, adjFaceVec);
+    for(unsigned int i = 0; i < adjFaceVec.size(); i++)
+    {
+        Face* fPtr = adjFaceVec.at(i);
+        HalfEdge* hePtr = FindHEinFacePointsToVert(tarVert, fPtr);
+        adjVertVec.push_back(hePtr->mSymEdge_Ptr->mVertex_Ptr);
+    }
+}
+
+bool JointInInfluVec(Joint* tarJoint, std::vector<JointInfluence>& jInfluVec)
+{
+    for(unsigned int i = 0; i < jInfluVec.size(); i++)
+    {
+        JointInfluence& currJInflu = jInfluVec.at(i);
+        if(currJInflu.tarJoint == tarJoint)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void SetNearbyVerticesInfluence(Vertex* tarVert, Joint* tarJoint)
+{
+    double threshold = 0.01;
+    std::vector<Vertex*> adjVertVec;
+    FindAdjVec(tarVert, adjVertVec);
+    int k = 0;
+    for(unsigned int i = 0; i < adjVertVec.size(); i++)
+    {
+        Vertex* vertPtr = adjVertVec.at(i);
+        if(JointInInfluVec(tarJoint, vertPtr->mJointInfluVec))
+        {
+            continue;
+        }
+        glm::vec4 tarJointPos = tarJoint->getOverallTransformation() * glm::vec4(0, 0, 0, 1);
+        double distance = CalDistance(vertPtr->mPos, tarJointPos);
+        double influWeight = 1 / (pow(distance, 3));
+        if(influWeight < threshold)
+        {
+            continue;
+        }
+        else
+        {
+            JointInfluence jInflu;
+            jInflu.influenceNum = influWeight;
+            jInflu.tarJoint = tarJoint;
+            vertPtr->mJointInfluVec.push_back(jInflu);
+            SetNearbyVerticesInfluence(vertPtr, tarJoint);
+        }
+    }
+}
+
+void NormalizeInfluence(Vertex* tarVert)
+{
+    float sumInflu = 0;
+    for(unsigned int i = 0; i < tarVert->mJointInfluVec.size(); i++)
+    {
+        JointInfluence& tarInflu = tarVert->mJointInfluVec.at(i);
+        sumInflu += tarInflu.influenceNum;
+    }
+
+    for(unsigned int i = 0; i < tarVert->mJointInfluVec.size(); i++)
+    {
+        JointInfluence& tarInflu = tarVert->mJointInfluVec.at(i);
+        tarInflu.influenceNum = tarInflu.influenceNum / sumInflu;
+    }
 }
 
 // jointNum = 2
@@ -694,3 +769,60 @@ void MyGL::Skinning(Mesh& iMesh, Skeleton& iSkeleton)
     SetBindMatForEachJoint(iSkeleton);
 }
 
+void MyGL::HeatDiffusionSkinning(Mesh &iMesh, Skeleton &iSkeleton)
+{
+    // Set every Vertices Weights.
+    for(unsigned int i = 0; i < iSkeleton.mJointsList.size(); i++)
+    {
+        std::vector<Vertex*> nearestVertVec;
+        Joint* tarJoint = iSkeleton.mJointsList.at(i).get();
+        FindNearestVertices(1, iMesh, tarJoint, nearestVertVec);
+        Vertex* nearestVet = nearestVertVec.at(0);
+        JointInfluence jInflu = JointInfluence();
+        jInflu.influenceNum = 1;
+        jInflu.tarJoint = tarJoint;
+        SetNearbyVerticesInfluence(nearestVet, tarJoint);
+    }
+    // Normalize Influence of every Vertices.
+    for(unsigned int i = 0; i < iMesh.mVertexList.size(); i++)
+    {
+        Vertex* tarVert = iMesh.mVertexList.at(i).get();
+
+        for(;tarVert->mJointInfluVec.size() > 7;)
+        {
+            tarVert->mJointInfluVec.pop_back();
+        }
+
+        for(;tarVert->mJointInfluVec.size() < 7;)
+        {
+            JointInfluence temp;
+            temp.influenceNum = 0;
+            temp.tarJoint = iSkeleton.mRoot;
+            tarVert->mJointInfluVec.push_back(temp);
+        }
+        NormalizeInfluence(tarVert);
+
+
+        // Fill the number gap in the Influ Vector in the tarVert
+        /*for(unsigned int i = 0; i < iSkeleton.mJointsList.size(); i++)
+        {
+            Joint* tarJoint = iSkeleton.mJointsList.at(i).get();
+            if(JointInInfluVec(tarJoint, tarVert->mJointInfluVec) == false)
+            {
+                JointInfluence temp;
+                temp.influenceNum = 0;
+                temp.tarJoint = tarJoint;
+                tarVert->mJointInfluVec.push_back(temp);
+            }
+        }*/
+        double weightSum = 0;
+        for(unsigned int i = 0; i < tarVert->mJointInfluVec.size(); i++)
+        {
+            JointInfluence temp = tarVert->mJointInfluVec.at(i);
+            weightSum += temp.influenceNum;
+        }
+
+        std::cout << weightSum << std::endl;
+    }
+
+}

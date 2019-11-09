@@ -24,15 +24,21 @@ uniform mat4 u_BindMatArray[100];
 
 uniform mat4 u_JointToWorldMatArray[100];
 
+uniform int u_JointNum;
+
 //in int in_InfluJointsID[2]; // A joint's ID should correspond to the index at which its bind and
                               // transformation matrices are stored in your arrays.
 
 //in float in_weights[2];    // For example, if a vertex had joint IDs [0, 4] and weights [0.45, 0.55],
                              // then joint 0 would have a weight of 0.45 and joint 4 would have a weight of 0.55 on this vertex.
                              // We recommend using a regular vec or an array of floats to store this data.
-
-in vec2 in_weights;
 in ivec2 in_jointIDs;
+in vec2 in_weights;
+
+
+in int in_jointIDsArray[7];
+in float in_weightsArray[7];
+
 
 in vec4 vs_Pos;             // The array of vertex positions passed to the shader
 
@@ -48,9 +54,20 @@ void main()
 {
     // Pass the vertex colors to the fragment shader for interpolation
     // Note the Default Int Calculation
-    fs_Col = vec4(1.0 / (in_jointIDs.y + 1.0),
+    /*fs_Col = vec4(1.0 / (in_jointIDs.y + 1.0),
                   1.0 / (in_jointIDs.y + 1.0),
-                  1.0 / (in_jointIDs.y + 1.0), 0);
+                  1.0 / (in_jointIDs.y + 1.0), 0);*/
+    /*fs_Col = vec4(1.0 / (in_jointIDsArray[0] + 1.0),
+                  1.0 / (in_jointIDsArray[0] + 1.0),
+                  1.0 / (in_jointIDsArray[0] + 1.0),
+                  0);*/
+    float sumWeight = 0;
+    for(int i = 0; i < 7; i++)
+    {
+        sumWeight += in_weightsArray[i];
+    }
+    fs_Col = vec4(sumWeight, sumWeight, sumWeight, 0);
+    //fs_Col = vec4(1.0 / u_JointNum, 1.0 / u_JointNum, 1.0 / u_JointNum, 0);
 
     mat3 invTranspose = mat3(u_ModelInvTr);
     fs_Nor = vec4(invTranspose * vec3(vs_Nor), 0);          // Pass the vertex normals to the fragment shader for interpolation.
@@ -59,11 +76,11 @@ void main()
                                                             // perpendicular to the surface after the surface is transformed by
                                                             // the model matrix.
     vec4 posSum = vec4(0, 0, 0, 0);
-    for(int i = 0; i < 2; i++)
+    for(int i = 0; i < 7; i++)
     {
-        mat4 bindMat = u_BindMatArray[in_jointIDs[i]];
-        mat4 overAllT = u_JointToWorldMatArray[in_jointIDs[i]];
-        posSum += overAllT * bindMat * in_weights[i] * u_Model * vs_Pos;
+        mat4 bindMat = u_BindMatArray[in_jointIDsArray[i]];
+        mat4 overAllT = u_JointToWorldMatArray[in_jointIDsArray[i]];
+        posSum += overAllT * bindMat * in_weightsArray[i] * u_Model * vs_Pos;
     }
 
     fs_Pos = posSum.xyz;

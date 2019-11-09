@@ -21,6 +21,8 @@ public:
     int attrCol; // A handle for the "in" vec4 representing vertex color in the vertex shader
     int attrInfluJointsID;
     int attrInWeights;
+    int attrInfluJointsIDArray;
+    int attrInWeightsArray;
     bool hasInfluJointsID;
     bool hasInWeights;
 
@@ -31,8 +33,9 @@ public:
     int unifCamPos; // A handle for the "uniform" vec4 representing color of geometry in the vertex shader
     int unifBindMatArray;
     int unifJointToWorldMatArray;
+    int unifJointNum;
 
-    int jointNum;
+
 
 public:
     ShaderProgram(OpenGLContext* context);
@@ -57,6 +60,7 @@ public:
 
     void setBindMatArray(std::vector<glm::mat4> &bindMatVec);
     void setJointToWorldMatArray(std::vector<glm::mat4> &jointToWorldMatVec);
+    void setJointNum(int iNum);
 
     QString qTextFileRead(const char*);
 
@@ -64,6 +68,7 @@ private:
     OpenGLContext* context;   // Since Qt's OpenGL support is done through classes like QOpenGLFunctions_3_2_Core,
                             // we need to pass our OpenGL context to the Drawable in order to call GL functions
                             // from within this class.
+    int jointNum;
 };
 
 

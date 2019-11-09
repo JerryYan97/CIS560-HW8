@@ -3,8 +3,10 @@
 
 Drawable::Drawable(OpenGLContext* context)
     : bufIdx(), bufPos(), bufNor(), bufCol(), bufInfluJointsID(), bufWeights(),
+      bufInfluJointsIDArray(), bufWeightsArray(),
       idxBound(false), posBound(false), norBound(false), colBound(false),
-      influJointsIDBound(false), weightsBound(false),
+      influJointsIDBound(false), weightsBound(false), influJointsIDArrayBound(false),
+      weightsArrayBound(false),
       mp_context(context)
 {}
 
@@ -21,6 +23,8 @@ void Drawable::destroy()
     mp_context->glDeleteBuffers(1, &bufCol);
     mp_context->glDeleteBuffers(1, &bufInfluJointsID);
     mp_context->glDeleteBuffers(1, &bufWeights);
+    mp_context->glDeleteBuffers(1, &bufInfluJointsIDArray);
+    mp_context->glDeleteBuffers(1, &bufWeightsArray);
 }
 
 GLenum Drawable::drawMode()
@@ -79,6 +83,18 @@ void Drawable::generateWeights()
     mp_context->glGenBuffers(1, &bufWeights);
 }
 
+void Drawable::generateInfluJointIDArray()
+{
+    influJointsIDArrayBound = true;
+    mp_context->glGenBuffers(1, &bufInfluJointsIDArray);
+}
+
+void Drawable::generateWeightsArray()
+{
+    weightsArrayBound = true;
+    mp_context->glGenBuffers(1, &bufWeightsArray);
+}
+
 bool Drawable::bindIdx()
 {
     if(idxBound) {
@@ -127,5 +143,23 @@ bool Drawable::bindWeights()
         mp_context->glBindBuffer(GL_ARRAY_BUFFER, bufWeights);
     }
     return weightsBound;
+}
+
+bool Drawable::bindInfluJointIDArray()
+{
+    if(influJointsIDArrayBound)
+    {
+        mp_context->glBindBuffer(GL_ARRAY_BUFFER, bufInfluJointsIDArray);
+    }
+    return influJointsIDArrayBound;
+}
+
+bool Drawable::bindWeightsArray()
+{
+    if(weightsArrayBound)
+    {
+        mp_context->glBindBuffer(GL_ARRAY_BUFFER, bufWeightsArray);
+    }
+    return weightsArrayBound;
 }
 

@@ -1,4 +1,5 @@
 #include "shaderprogram.h"
+#include <iostream>
 #include <QFile>
 #include <QStringBuilder>
 
@@ -6,8 +7,9 @@
 ShaderProgram::ShaderProgram(OpenGLContext *context)
     : vertShader(), fragShader(), prog(),
       attrPos(-1), attrNor(-1), attrCol(-1), attrInfluJointsID(-1),
-      attrInWeights(-1), hasInfluJointsID(false), hasInWeights(false),
-      unifModel(-1), unifModelInvTr(-1), unifViewProj(-1), unifCamPos(-1),
+      attrInWeights(-1), attrInfluJointsIDArray(-1), attrInWeightsArray(-1),
+      hasInfluJointsID(false), hasInWeights(false),
+      unifModel(-1), unifModelInvTr(-1), unifViewProj(-1), unifCamPos(-1), unifJointNum(-1),
       jointNum(0), context(context)
 {}
 
@@ -64,6 +66,8 @@ void ShaderProgram::create(const char *vertfile, const char *fragfile)
     attrCol = context->glGetAttribLocation(prog, "vs_Col");
     attrInfluJointsID = context->glGetAttribLocation(prog, "in_jointIDs");
     attrInWeights = context->glGetAttribLocation(prog, "in_weights");
+    attrInfluJointsIDArray = context->glGetAttribLocation(prog, "in_jointIDsArray");
+    attrInWeightsArray = context->glGetAttribLocation(prog, "in_weightsArray");
 
 
     unifModel      = context->glGetUniformLocation(prog, "u_Model");
@@ -72,6 +76,26 @@ void ShaderProgram::create(const char *vertfile, const char *fragfile)
     unifCamPos      = context->glGetUniformLocation(prog, "u_CamPos");
     unifBindMatArray = context->glGetUniformLocation(prog, "u_BindMatArray");
     unifJointToWorldMatArray = context->glGetUniformLocation(prog, "u_JointToWorldMatArray");
+    unifJointNum = context->glGetUniformLocation(prog, "u_JointNum");
+
+    std::cout << "Vertex Shader:" << vertfile << std::endl;
+    std::cout << "Shader Source Code:" << std::endl << vertSource << std::endl;
+    std::cout << "Fragment Shader:" << fragfile << std::endl;
+    std::cout << "Vertex Shader In Variable ID: attrPos:" << attrPos << std::endl;
+    std::cout << "Vertex Shader In Variable ID: attrNor:" << attrNor << std::endl;
+    std::cout << "Vertex Shader In Variable ID: attrCol:" << attrCol << std::endl;
+    std::cout << "Vertex Shader In Variable ID: attrInfluJointsID:" << attrInfluJointsID << std::endl;
+    std::cout << "Vertex Shader In Variable ID: attrInWeights:" << attrInWeights << std::endl;
+    std::cout << "Vertex Shader In Variable ID: attrInfluJointsIDArray:" << attrInfluJointsIDArray << std::endl;
+    std::cout << "Vertex Shader In Variable ID: attrInWeightsArray:" << attrInWeightsArray << std::endl;
+    std::cout << "Vertex Shader Uniform Variable ID: unifModel:" << unifModel << std::endl;
+    std::cout << "Vertex Shader Uniform Variable ID: unifModelInvTr:" << unifModelInvTr << std::endl;
+    std::cout << "Vertex Shader Uniform Variable ID: unifViewProj:" << unifViewProj << std::endl;
+    std::cout << "Vertex Shader Uniform Variable ID: unifCamPos:" << unifCamPos << std::endl;
+    std::cout << "Vertex Shader Uniform Variable ID: unifBindMatArray:" << unifBindMatArray << std::endl;
+    std::cout << "Vertex Shader Uniform Variable ID: unifJointToWorldMatArray:" << unifJointToWorldMatArray << std::endl;
+    std::cout << "Vertex Shader Uniform Variable ID: unifJointNum:" << unifJointNum << std::endl;
+    std::cout << std::endl << std::endl;
 }
 
 void ShaderProgram::useMe()
@@ -161,6 +185,17 @@ void ShaderProgram::setJointToWorldMatArray(std::vector<glm::mat4> &jointToWorld
     }
 }
 
+void ShaderProgram::setJointNum(int iNum)
+{
+    useMe();
+    jointNum = iNum;
+    if(unifJointNum != -1)
+    {
+        //int temp = 2;
+        context->glUniform1iv(unifJointNum, 1, &iNum);
+    }
+}
+
 //This function, as its name implies, uses the passed in GL widget
 void ShaderProgram::draw(Drawable &d)
 {
@@ -200,6 +235,33 @@ void ShaderProgram::draw(Drawable &d)
         context->glVertexAttribPointer(attrInWeights, 2, GL_FLOAT, false, 0, nullptr);
     }
 
+    if (attrInfluJointsIDArray != -1 && d.bindInfluJointIDArray())
+    {
+        for(unsigned int i = 0; i < jointNum; i++)
+        {
+            context->glEnableVertexAttribArray(attrInfluJointsIDArray + i);
+            context->glVertexAttribIPointer(attrInfluJointsIDArray + i,
+                                            1,
+                                            GL_INT,
+                                            sizeof(int) * jointNum,
+                                            reinterpret_cast<void*>(i * 1 * sizeof(int)));
+        }
+    }
+
+    if(attrInWeightsArray != -1 && d.bindWeightsArray())
+    {
+        for(unsigned int i = 0; i < jointNum; i++)
+        {
+            context->glEnableVertexAttribArray(attrInWeightsArray + i);
+            context->glVertexAttribPointer(attrInWeightsArray + i,
+                                           1,
+                                           GL_FLOAT,
+                                           false,
+                                           sizeof(float) * jointNum,
+                                           reinterpret_cast<void*>(i * 1 * sizeof(float)));
+        }
+    }
+
     // Bind the index buffer and then draw shapes from it.
     // This invokes the shader program, which accesses the vertex buffers.
     d.bindIdx();
@@ -210,6 +272,20 @@ void ShaderProgram::draw(Drawable &d)
     if (attrCol != -1) context->glDisableVertexAttribArray(attrCol);
     if (attrInfluJointsID != -1) context->glDisableVertexAttribArray(attrInfluJointsID);
     if (attrInWeights != -1) context->glDisableVertexAttribArray(attrInWeights);
+    if (attrInfluJointsIDArray != -1)
+    {
+        for(unsigned int i = 0; i < 2; i++)
+        {
+            context->glDisableVertexAttribArray(attrInfluJointsIDArray + i);
+        }
+    }
+    if (attrInWeightsArray != -1)
+    {
+        for(unsigned int i = 0; i < 2; i++)
+        {
+            context->glDisableVertexAttribArray(attrInWeightsArray + i);
+        }
+    }
 
     context->printGLErrorLog();
 }

@@ -59,6 +59,7 @@ public:
     //void mousePressEvent(QMouseEvent *e);
     void IntersectionTest(glm::vec4 modelSpaceRay);
     void Skinning(Mesh& iMesh, Skeleton& iSkeleton);
+    void HeatDiffusionSkinning(Mesh& iMesh, Skeleton& iSkeleton);
 protected:
     void keyPressEvent(QKeyEvent *e);
     void JointDisplayDraw();

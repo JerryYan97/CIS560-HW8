@@ -9,6 +9,7 @@ unsigned int HalfEdge::mID = 0;
 unsigned int Face::mID = 0;
 
 
+/// General Support ///
 glm::vec4 CalculateFaceNorm(Face* f)
 {
     glm::vec3 accuNorm = glm::vec3(0, 0, 0);
@@ -34,6 +35,126 @@ glm::vec4 CalculateFaceNorm(Face* f)
     return glm::vec4(accuNorm.x / counter, accuNorm.y / counter, accuNorm.z / counter, 0);
 }
 
+HalfEdge* FindPreHE(HalfEdge* const iHE)
+{
+    HalfEdge* hePtr = iHE;
+    do{
+        if(hePtr->mNextEdge_Ptr == iHE)
+        {
+            return hePtr;
+        }
+        hePtr = hePtr->mNextEdge_Ptr;
+    }while(hePtr != iHE);
+}
+
+glm::vec4 VertPosSum(const std::vector<Vertex*>& vertVec)
+{
+    glm::vec4 temp = glm::vec4(0, 0, 0, 0);
+    for(unsigned int i = 0; i < vertVec.size(); i++)
+    {
+        Vertex* tempVPtr = vertVec.at(i);
+        temp += tempVPtr->mPos;
+    }
+    return temp;
+}
+
+HalfEdge* FindHEinFacePointsToVert(const Vertex* tarVert, const Face* f)
+{
+    HalfEdge* hePtr = f->mEdge_Ptr;
+    do{
+        if(hePtr->mVertex_Ptr == tarVert)
+        {
+            return hePtr;
+        }
+        hePtr = hePtr->mNextEdge_Ptr;
+    }while(hePtr != f->mEdge_Ptr);
+}
+
+
+bool VertInVec(const Vertex* tarVet, const std::vector<Vertex*>& vetVec)
+{
+    for(unsigned int i = 0; i < vetVec.size(); i++)
+    {
+        if(tarVet == vetVec.at(i))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+unsigned int GetEdgeNum(Face* f)
+{
+    HalfEdge* hePtr = f->mEdge_Ptr;
+    unsigned int i = 0;
+    do{
+        i++;
+        hePtr = hePtr->mNextEdge_Ptr;
+    }while(hePtr != f->mEdge_Ptr);
+    return i;
+}
+
+bool GLMVec4Same(glm::vec4 a, glm::vec4 b)
+{
+    for(unsigned int i = 0; i < 4; i++)
+    {
+        if(std::abs(a[i] - b[i]) > DBL_EPSILON)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+// If we cannot find a same one, then we return -1
+int Mesh::FindMeshVertIdx(PVertex& iPVertex)
+{
+    glm::vec4 a = iPVertex.m_pos;
+    for(unsigned int i = 0; i < this->mVertexList.size(); i++)
+    {
+        Vertex* temp = this->mVertexList.at(i).get();
+        glm::vec4 b = temp->mPos;
+        if(GLMVec4Same(a, b))
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
+
+
+bool VertexInFace(Vertex* v, Face* f)
+{
+    HalfEdge* hePtr = f->mEdge_Ptr;
+    do{
+        if(hePtr->mVertex_Ptr == v)
+        {
+            return true;
+        }
+        hePtr = hePtr->mNextEdge_Ptr;
+    }while(hePtr != f->mEdge_Ptr);
+    return false;
+}
+
+
+HalfEdge* NextAdjFaceTarHE(const HalfEdge* currentHE)
+{
+    HalfEdge* symHEPtr = currentHE->mSymEdge_Ptr;
+    HalfEdge* nextHEPtr = FindPreHE(symHEPtr);
+    return nextHEPtr;
+}
+
+void FindAdjFaces(const Vertex* tarVet, std::vector<Face*>& adjFacesVec)
+{
+    HalfEdge* temp = tarVet->mEdge_Ptr;
+    do{
+        adjFacesVec.push_back(temp->mFace_Ptr);
+        temp = NextAdjFaceTarHE(temp);
+    }while(temp != tarVet->mEdge_Ptr);
+}
+
+/// ************************* ///
 Vertex::Vertex()
 {
     this->setText(QString::number(mID));
@@ -178,6 +299,14 @@ void Mesh::create()
 
     generateWeights();
     mp_context->glBindBuffer(GL_ARRAY_BUFFER, bufWeights);
+    mp_context->glBufferData(GL_ARRAY_BUFFER, mDataArrays.arrWeights.size() * sizeof(float), mDataArrays.arrWeights.data(), GL_STATIC_DRAW);
+
+    generateInfluJointIDArray();
+    mp_context->glBindBuffer(GL_ARRAY_BUFFER, bufInfluJointsIDArray);
+    mp_context->glBufferData(GL_ARRAY_BUFFER, mDataArrays.arrInfluJointsIDs.size() * sizeof(int), mDataArrays.arrInfluJointsIDs.data(), GL_STATIC_DRAW);
+
+    generateWeightsArray();
+    mp_context->glBindBuffer(GL_ARRAY_BUFFER, bufWeightsArray);
     mp_context->glBufferData(GL_ARRAY_BUFFER, mDataArrays.arrWeights.size() * sizeof(float), mDataArrays.arrWeights.data(), GL_STATIC_DRAW);
 }
 
@@ -846,40 +975,7 @@ void Mesh::AddMidPoints(std::vector<Vertex*>& mCentroidsVec, std::vector<Vertex*
 ///*********************///
 // For smooth step below
 ///General Support///
-HalfEdge* FindPreHE(HalfEdge* const iHE)
-{
-    HalfEdge* hePtr = iHE;
-    do{
-        if(hePtr->mNextEdge_Ptr == iHE)
-        {
-            return hePtr;
-        }
-        hePtr = hePtr->mNextEdge_Ptr;
-    }while(hePtr != iHE);
-}
 
-glm::vec4 VertPosSum(const std::vector<Vertex*>& vertVec)
-{
-    glm::vec4 temp = glm::vec4(0, 0, 0, 0);
-    for(unsigned int i = 0; i < vertVec.size(); i++)
-    {
-        Vertex* tempVPtr = vertVec.at(i);
-        temp += tempVPtr->mPos;
-    }
-    return temp;
-}
-
-HalfEdge* FindHEinFacePointsToVert(const Vertex* tarVert, const Face* f)
-{
-    HalfEdge* hePtr = f->mEdge_Ptr;
-    do{
-        if(hePtr->mVertex_Ptr == tarVert)
-        {
-            return hePtr;
-        }
-        hePtr = hePtr->mNextEdge_Ptr;
-    }while(hePtr != f->mEdge_Ptr);
-}
 ///*********************///
 void FindAdjMidpoints(const Vertex* tarVet, std::vector<Vertex*>& adjMidpointsVec, const std::vector<Face*>& adjFacesVec)
 {
@@ -890,22 +986,6 @@ void FindAdjMidpoints(const Vertex* tarVet, std::vector<Vertex*>& adjMidpointsVe
         HalfEdge* preHE = FindPreHE(currHE);
         adjMidpointsVec.push_back(preHE->mVertex_Ptr);
     }
-}
-
-HalfEdge* NextAdjFaceTarHE(const HalfEdge* currentHE)
-{
-    HalfEdge* symHEPtr = currentHE->mSymEdge_Ptr;
-    HalfEdge* nextHEPtr = FindPreHE(symHEPtr);
-    return nextHEPtr;
-}
-
-void FindAdjFaces(const Vertex* tarVet, std::vector<Face*>& adjFacesVec)
-{
-    HalfEdge* temp = tarVet->mEdge_Ptr;
-    do{
-        adjFacesVec.push_back(temp->mFace_Ptr);
-        temp = NextAdjFaceTarHE(temp);
-    }while(temp != tarVet->mEdge_Ptr);
 }
 
 void FindAdjCentro(const Vertex* tarVet, const std::vector<Vertex*>& CentrodsVec, std::vector<Vertex*>& adjCentroVec, std::vector<Face*>& adjFacesVec)
@@ -976,6 +1056,9 @@ int GetOriVertNum(Face* oriF)
     }while(hePtr != oriF->mEdge_Ptr);
     return (i / 2);
 }
+
+
+
 ///*********************///
 void Mesh::ConstructAndCreateFaces(Face* oriF, std::vector<Face*>& faceVec)
 {
@@ -1058,17 +1141,6 @@ void Mesh::QuadrangleFace(Face *f, Vertex *centroid, std::vector<HalfEdge *> mid
     }
 }
 
-bool VertInVec(const Vertex* tarVet, const std::vector<Vertex*>& vetVec)
-{
-    for(unsigned int i = 0; i < vetVec.size(); i++)
-    {
-        if(tarVet == vetVec.at(i))
-        {
-            return true;
-        }
-    }
-    return false;
-}
 
 void ConstructMidHEVec(const Face* f,
                        const std::vector<Vertex *> midPointsVec,
@@ -1138,16 +1210,7 @@ void Mesh::Catmull_Clark_Subdivide()
 ///*********************///
 // Edge Extrustion
 ///***General Support***///
-unsigned int GetEdgeNum(Face* f)
-{
-    HalfEdge* hePtr = f->mEdge_Ptr;
-    unsigned int i = 0;
-    do{
-        i++;
-        hePtr = hePtr->mNextEdge_Ptr;
-    }while(hePtr != f->mEdge_Ptr);
-    return i;
-}
+
 ///*********************///
 void SetExtrudeSym(HalfEdge* oldHE1, HalfEdge* oldHE2)
 {
@@ -1264,33 +1327,8 @@ void Mesh::ExtrudeFace(Face* f, float dis)
 // Convert from Polygon to Mesh
 ///*********///
 //
-bool GLMVec4Same(glm::vec4 a, glm::vec4 b)
-{
-    for(unsigned int i = 0; i < 4; i++)
-    {
-        if(std::abs(a[i] - b[i]) > DBL_EPSILON)
-        {
-            return false;
-        }
-    }
-    return true;
-}
 
-// If we cannot find a same one, then we
-int Mesh::FindMeshVertIdx(PVertex& iPVertex)
-{
-    glm::vec4 a = iPVertex.m_pos;
-    for(unsigned int i = 0; i < this->mVertexList.size(); i++)
-    {
-        Vertex* temp = this->mVertexList.at(i).get();
-        glm::vec4 b = temp->mPos;
-        if(GLMVec4Same(a, b))
-        {
-            return i;
-        }
-    }
-    return -1;
-}
+
 
 // We are going to Construct the whole vertics and meshTriIndex that we need.
 // The meshTriIndex should contain the index of this->mVerticeList, and we are going to
@@ -1387,19 +1425,6 @@ void Mesh::ConstructAndCreateMeshLoopFaces(std::vector<Triangle>& meshTriIndex)
     {
         ConstructAndCreateAMeshLoopFace(meshTriIndex.at(i));
     }
-}
-
-bool VertexInFace(Vertex* v, Face* f)
-{
-    HalfEdge* hePtr = f->mEdge_Ptr;
-    do{
-        if(hePtr->mVertex_Ptr == v)
-        {
-            return true;
-        }
-        hePtr = hePtr->mNextEdge_Ptr;
-    }while(hePtr != f->mEdge_Ptr);
-    return false;
 }
 
 void Mesh::SetHEConnection(HalfEdge* hePtr, int i)
